@@ -41,9 +41,9 @@ class AccessMiddleware(BaseMiddleware):
         user_id = event.from_user.id
         if user_id not in ALLOWED_USERS and user_id != ADMIN_ID:
             if isinstance(event, Message):
-                await event.answer(f"U vas net dostupa k botu.\nВаш ID: <code>{user_id}</code>\n\nPeredayte ego administratoru.")
+                await event.answer(f"У вас нет доступа к боту.\nВаш ID: <code>{user_id}</code>\n\nПередайте его администратору.")
             elif isinstance(event, CallbackQuery):
-                await event.answer("Net dostupa!", show_alert=True)
+                await event.answer("Нет доступа!", show_alert=True)
             return
         return await handler(event, data)
 
@@ -62,21 +62,21 @@ async def allow_cmd(message: Message):
         return
     args = message.text.split()
     if len(args) < 2 or not args[1].isdigit():
-        await message.answer("Format vydachi dostupa: <code>/allow 12345678</code>")
+        await message.answer("Формат выдачи доступа: <code>/allow 12345678</code>")
         return
     uid = int(args[1])
     ALLOWED_USERS.add(uid)
     save_users()
-    await message.answer(f"Polzovatel <code>{uid}</code> poluchil dostup.")
+    await message.answer(f"Пользователь <code>{uid}</code> получил доступ.")
 
 @router.message(CommandStart())
 async def start_cmd(message: Message):
     user_name = clean_html(message.from_user.first_name)
     text = (
-        f"Hello my friend — <b>{user_name}</b>\n\n"
-        "Komandy (nazhmi, chtoby skopirovat):\n"
-        "<code>/search</code> [slovo] — poisk kanalov.\n"
-        "<code>/posts</code> [kanal] [slovo] — poisk postov.\n\n"
+        f"Hello my friend {user_name}\n\n"
+        "Команды (нажми, чтобы скопировать):\n"
+        "<code>/search</code> [слово] — поиск каналов.\n"
+        "<code>/posts</code> [канал] [слово] — поиск постов.\n\n"
         "Admin: @xurder / @lurder"
     )
     try:
@@ -88,10 +88,10 @@ async def start_cmd(message: Message):
 async def search_cmd(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Primer: <code>/search tekhnologii</code>")
+        await message.answer("Пример: <code>/search технологии</code>")
         return
     keyword = args[1].lower()
-    msg = await message.answer("Poisk...")
+    msg = await message.answer("Поиск...")
     
     try:
         result = await userbot(SearchRequest(q=keyword, limit=5))
@@ -101,33 +101,33 @@ async def search_cmd(message: Message):
                 channels.append({
                     'title': clean_html(chat.title),
                     'username': chat.username,
-                    'count': getattr(chat, 'participants_count', 'Neizvestno')
+                    'count': getattr(chat, 'participants_count', 'Неизвестно')
                 })
         
         if not channels:
-            await msg.edit_text("Nichego ne naydeno.")
+            await msg.edit_text("Ничего не найдено.")
             return
             
         search_cache[keyword] = channels
         
-        text = f"Rezul taty po zaprosu: <b>{keyword}</b>\n\n"
+        text = f"Результаты по запросу: <b>{keyword}</b>\n\n"
         for c in channels:
-            text += f"<b>{c['title']}</b>\nUsername: @{c['username']}\nSsylka: https://t.me/{c['username']}\n" + "-"*30 + "\n"
+            text += f"<b>{c['title']}</b>\nUsername: @{c['username']}\nСсылка: https://t.me/{c['username']}\n" + "-"*30 + "\n"
             
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="V menyu", callback_data="menu")]])
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
         await msg.edit_text(text, reply_markup=kb)
     except Exception as e:
-        await msg.edit_text("Oshibka poiska.")
+        await msg.edit_text("Ошибка поиска.")
 
 @router.message(Command("posts"))
 async def posts_cmd(message: Message):
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("Primer: <code>/posts durov telegram</code>")
+        await message.answer("Пример: <code>/posts durov telegram</code>")
         return
     channel = args[1].replace('@', '')
     keyword = args[2]
-    msg = await message.answer("Poisk postov...")
+    msg = await message.answer("Поиск постов...")
     
     try:
         posts = []
@@ -136,21 +136,21 @@ async def posts_cmd(message: Message):
                 posts.append({'text': clean_html(m.text)[:200], 'id': m.id, 'date': m.date.strftime("%d.%m.%Y")})
         
         if not posts:
-            await msg.edit_text("Posty ne naydeny.")
+            await msg.edit_text("Посты не найдены.")
             return
             
-        text = f"Posty iz <b>@{channel}</b> po slovu <b>{keyword}</b>:\n\n"
+        text = f"Посты из <b>@{channel}</b> по слову <b>{keyword}</b>:\n\n"
         for p in posts:
-            text += f"Data: {p['date']}\n{p['text']}...\nOriginal: https://t.me/{channel}/{p['id']}\n" + "-"*30 + "\n"
+            text += f"Дата: {p['date']}\n{p['text']}...\nОригинал: https://t.me/{channel}/{p['id']}\n" + "-"*30 + "\n"
             
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="V menyu", callback_data="menu")]])
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
         await msg.edit_text(text, disable_web_page_preview=True, reply_markup=kb)
     except Exception:
-        await msg.edit_text("Oshibka. Vozmozhno, kanal chastnyy.")
+        await msg.edit_text("Ошибка. Возможно, канал частный.")
 
 @router.callback_query(F.data == "menu")
 async def menu_cb(call: CallbackQuery):
-    await call.message.edit_text("Ispolzuyte <code>/search</code> ili <code>/posts</code>.")
+    await call.message.edit_text("Используйте <code>/search</code> или <code>/posts</code>.")
 
 async def ping_handler(request):
     return web.Response(text="Bot is alive")
