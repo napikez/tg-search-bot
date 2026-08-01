@@ -26,7 +26,7 @@ userbot = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
 # === НАСТРОЙКИ ГИФКИ ===
 # Замени эту ссылку на любую свою гифку, если захочешь:
-START_GIF_URL = "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"
+START_GIF_URL = "https://i.postimg.cc/Y0z1tvpv/pinnsaver-c4f2378bff1a8783e55571f6099484da.gif"
 
 # === СИСТЕМА ДОСТУПОВ ===
 ALLOWED_USERS = {ADMIN_ID}
