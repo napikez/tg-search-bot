@@ -15,8 +15,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("API_ID", 0))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
-
-# Новый параметр - ID главного админа (тебя)
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -24,11 +22,8 @@ dp = Dispatcher()
 router = Router()
 userbot = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
-# === НАСТРОЙКИ ГИФКИ ===
-# Замени эту ссылку на любую свою гифку, если захочешь:
 START_GIF_URL = "https://i.postimg.cc/Y0z1tvpv/pinnsaver-c4f2378bff1a8783e55571f6099484da.gif"
 
-# === СИСТЕМА ДОСТУПОВ ===
 ALLOWED_USERS = {ADMIN_ID}
 if os.path.exists("users.txt"):
     with open("users.txt", "r") as f:
@@ -46,15 +41,14 @@ class AccessMiddleware(BaseMiddleware):
         user_id = event.from_user.id
         if user_id not in ALLOWED_USERS and user_id != ADMIN_ID:
             if isinstance(event, Message):
-                await event.answer(f"⛔️ <b>У вас нет доступа к боту.</b>\nВаш ID: <code>{user_id}</code>\n\nПередайте его администратору.")
+                await event.answer(f"U vas net dostupa k botu.\nВаш ID: <code>{user_id}</code>\n\nPeredayte ego administratoru.")
             elif isinstance(event, CallbackQuery):
-                await event.answer("Нет доступа!", show_alert=True)
+                await event.answer("Net dostupa!", show_alert=True)
             return
         return await handler(event, data)
 
 dp.message.middleware(AccessMiddleware())
 dp.callback_query.middleware(AccessMiddleware())
-# =========================
 
 search_cache = {}
 
@@ -68,20 +62,22 @@ async def allow_cmd(message: Message):
         return
     args = message.text.split()
     if len(args) < 2 or not args[1].isdigit():
-        await message.answer("Формат выдачи доступа: <code>/allow 12345678</code>")
+        await message.answer("Format vydachi dostupa: <code>/allow 12345678</code>")
         return
     uid = int(args[1])
     ALLOWED_USERS.add(uid)
     save_users()
-    await message.answer(f"✅ Пользователь <code>{uid}</code> получил доступ к боту.")
+    await message.answer(f"Polzovatel <code>{uid}</code> poluchil dostup.")
 
 @router.message(CommandStart())
 async def start_cmd(message: Message):
+    user_name = clean_html(message.from_user.first_name)
     text = (
-        "<b>Система поиска активна.</b>\n\n"
-        "Команды (нажми, чтобы скопировать):\n"
-        "<code>/search</code> [слово] — поиск каналов.\n"
-        "<code>/posts</code> [канал] [слово] — поиск постов."
+        f"Hello my friend — <b>{user_name}</b>\n\n"
+        "Komandy (nazhmi, chtoby skopirovat):\n"
+        "<code>/search</code> [slovo] — poisk kanalov.\n"
+        "<code>/posts</code> [kanal] [slovo] — poisk postov.\n\n"
+        "Admin: @xurder / @lurder"
     )
     try:
         await message.answer_animation(animation=START_GIF_URL, caption=text)
@@ -92,10 +88,10 @@ async def start_cmd(message: Message):
 async def search_cmd(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Пример: <code>/search технологии</code>")
+        await message.answer("Primer: <code>/search tekhnologii</code>")
         return
     keyword = args[1].lower()
-    msg = await message.answer("Поиск...")
+    msg = await message.answer("Poisk...")
     
     try:
         result = await userbot(SearchRequest(q=keyword, limit=5))
@@ -105,33 +101,33 @@ async def search_cmd(message: Message):
                 channels.append({
                     'title': clean_html(chat.title),
                     'username': chat.username,
-                    'count': getattr(chat, 'participants_count', 'Неизвестно')
+                    'count': getattr(chat, 'participants_count', 'Neizvestno')
                 })
         
         if not channels:
-            await msg.edit_text("Ничего не найдено.")
+            await msg.edit_text("Nichego ne naydeno.")
             return
             
         search_cache[keyword] = channels
         
-        text = f"Результаты по запросу: <b>{keyword}</b>\n\n"
+        text = f"Rezul taty po zaprosu: <b>{keyword}</b>\n\n"
         for c in channels:
-            text += f"<b>{c['title']}</b>\nUsername: @{c['username']}\nСсылка: https://t.me/{c['username']}\n" + "-"*30 + "\n"
+            text += f"<b>{c['title']}</b>\nUsername: @{c['username']}\nSsylka: https://t.me/{c['username']}\n" + "-"*30 + "\n"
             
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="V menyu", callback_data="menu")]])
         await msg.edit_text(text, reply_markup=kb)
     except Exception as e:
-        await msg.edit_text("Ошибка поиска.")
+        await msg.edit_text("Oshibka poiska.")
 
 @router.message(Command("posts"))
 async def posts_cmd(message: Message):
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("Пример: <code>/posts durov telegram</code>")
+        await message.answer("Primer: <code>/posts durov telegram</code>")
         return
     channel = args[1].replace('@', '')
     keyword = args[2]
-    msg = await message.answer("Поиск постов...")
+    msg = await message.answer("Poisk postov...")
     
     try:
         posts = []
@@ -140,21 +136,21 @@ async def posts_cmd(message: Message):
                 posts.append({'text': clean_html(m.text)[:200], 'id': m.id, 'date': m.date.strftime("%d.%m.%Y")})
         
         if not posts:
-            await msg.edit_text("Посты не найдены.")
+            await msg.edit_text("Posty ne naydeny.")
             return
             
-        text = f"Посты из <b>@{channel}</b> по слову <b>{keyword}</b>:\n\n"
+        text = f"Posty iz <b>@{channel}</b> po slovu <b>{keyword}</b>:\n\n"
         for p in posts:
-            text += f"Дата: {p['date']}\n{p['text']}...\nОригинал: https://t.me/{channel}/{p['id']}\n" + "-"*30 + "\n"
+            text += f"Data: {p['date']}\n{p['text']}...\nOriginal: https://t.me/{channel}/{p['id']}\n" + "-"*30 + "\n"
             
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="V menyu", callback_data="menu")]])
         await msg.edit_text(text, disable_web_page_preview=True, reply_markup=kb)
     except Exception:
-        await msg.edit_text("Ошибка. Возможно, канал приватный.")
+        await msg.edit_text("Oshibka. Vozmozhno, kanal chastnyy.")
 
 @router.callback_query(F.data == "menu")
 async def menu_cb(call: CallbackQuery):
-    await call.message.edit_text("Используйте <code>/search</code> или <code>/posts</code>.")
+    await call.message.edit_text("Ispolzuyte <code>/search</code> ili <code>/posts</code>.")
 
 async def ping_handler(request):
     return web.Response(text="Bot is alive")
