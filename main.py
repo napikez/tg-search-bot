@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 from aiohttp import web
-from aiogram import Bot, Dispatcher, Router, F
+from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, CommandStart
 from aiogram.client.default import DefaultBotProperties
@@ -16,10 +16,45 @@ API_ID = int(os.getenv("API_ID", 0))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
 
+# Новый параметр - ID главного админа (тебя)
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
+
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 router = Router()
 userbot = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+
+# === НАСТРОЙКИ ГИФКИ ===
+# Замени эту ссылку на любую свою гифку, если захочешь:
+START_GIF_URL = "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"
+
+# === СИСТЕМА ДОСТУПОВ ===
+ALLOWED_USERS = {ADMIN_ID}
+if os.path.exists("users.txt"):
+    with open("users.txt", "r") as f:
+        for line in f:
+            if line.strip().isdigit():
+                ALLOWED_USERS.add(int(line.strip()))
+
+def save_users():
+    with open("users.txt", "w") as f:
+        for uid in ALLOWED_USERS:
+            f.write(f"{uid}\n")
+
+class AccessMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        user_id = event.from_user.id
+        if user_id not in ALLOWED_USERS and user_id != ADMIN_ID:
+            if isinstance(event, Message):
+                await event.answer(f"⛔️ <b>У вас нет доступа к боту.</b>\nВаш ID: <code>{user_id}</code>\n\nПередайте его администратору.")
+            elif isinstance(event, CallbackQuery):
+                await event.answer("Нет доступа!", show_alert=True)
+            return
+        return await handler(event, data)
+
+dp.message.middleware(AccessMiddleware())
+dp.callback_query.middleware(AccessMiddleware())
+# =========================
 
 search_cache = {}
 
@@ -27,21 +62,37 @@ def clean_html(text):
     if not text: return ""
     return re.sub(r'<[^>]+>', '', text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
+@router.message(Command("allow"))
+async def allow_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.answer("Формат выдачи доступа: <code>/allow 12345678</code>")
+        return
+    uid = int(args[1])
+    ALLOWED_USERS.add(uid)
+    save_users()
+    await message.answer(f"✅ Пользователь <code>{uid}</code> получил доступ к боту.")
+
 @router.message(CommandStart())
 async def start_cmd(message: Message):
     text = (
-        "Система поиска.\n\n"
-        "Команды:\n"
-        "/search [слово] — поиск каналов.\n"
-        "/posts [канал] [слово] — поиск постов."
+        "<b>Система поиска активна.</b>\n\n"
+        "Команды (нажми, чтобы скопировать):\n"
+        "<code>/search</code> [слово] — поиск каналов.\n"
+        "<code>/posts</code> [канал] [слово] — поиск постов."
     )
-    await message.answer(text)
+    try:
+        await message.answer_animation(animation=START_GIF_URL, caption=text)
+    except Exception:
+        await message.answer(text)
 
 @router.message(Command("search"))
 async def search_cmd(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Пример: /search технологии")
+        await message.answer("Пример: <code>/search технологии</code>")
         return
     keyword = args[1].lower()
     msg = await message.answer("Поиск...")
@@ -76,7 +127,7 @@ async def search_cmd(message: Message):
 async def posts_cmd(message: Message):
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer("Пример: /posts durov telegram")
+        await message.answer("Пример: <code>/posts durov telegram</code>")
         return
     channel = args[1].replace('@', '')
     keyword = args[2]
@@ -103,7 +154,7 @@ async def posts_cmd(message: Message):
 
 @router.callback_query(F.data == "menu")
 async def menu_cb(call: CallbackQuery):
-    await call.message.edit_text("Используйте /search или /posts.")
+    await call.message.edit_text("Используйте <code>/search</code> или <code>/posts</code>.")
 
 async def ping_handler(request):
     return web.Response(text="Bot is alive")
