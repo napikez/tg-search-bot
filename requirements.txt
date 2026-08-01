@@ -1,0 +1,6 @@
+aiogram 
+telethon
+sqlalchemy
+aiosqlite
+python-dotenv
+aiohttp
