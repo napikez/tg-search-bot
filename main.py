@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,6 +11,10 @@ from aiogram.enums import ParseMode
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.functions.contacts import SearchRequest
+
+# Настройка логирования, чтобы видеть действия юзеров в консоли Render
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("API_ID", 0))
@@ -38,9 +43,16 @@ def save_users():
 
 class AccessMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        user_id = event.from_user.id
+        user = event.from_user
+        user_id = user.id
+        
+        # Логируем входящее сообщение или действие от любого юзера
+        if isinstance(event, Message) and event.text:
+            logger.info(f"USER ID: {user_id} | Username: @{user.username or 'None'} | Name: {user.first_name} | Text: {event.text}")
+
         if user_id not in ALLOWED_USERS and user_id != ADMIN_ID:
             if isinstance(event, Message):
+                logger.warning(f"BLOCKED ACCESS FOR USER ID: {user_id} (@{user.username})")
                 await event.answer(f"У вас нет доступа к боту.\nВаш ID: <code>{user_id}</code>\n\nПередайте его администратору.")
             elif isinstance(event, CallbackQuery):
                 await event.answer("Нет доступа!", show_alert=True)
@@ -67,7 +79,41 @@ async def allow_cmd(message: Message):
     uid = int(args[1])
     ALLOWED_USERS.add(uid)
     save_users()
+    logger.info(f"ADMIN gave access to user ID: {uid}")
     await message.answer(f"Пользователь <code>{uid}</code> получил доступ.")
+
+@router.message(Command("unallow"))
+async def unallow_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.answer("Формат удаления доступа: <code>/unallow 12345678</code>")
+        return
+    uid = int(args[1])
+    if uid == ADMIN_ID:
+        await message.answer("Нельзя забрать доступ у главного администратора!")
+        return
+    if uid in ALLOWED_USERS:
+        ALLOWED_USERS.remove(uid)
+        save_users()
+        logger.info(f"ADMIN removed access for user ID: {uid}")
+        await message.answer(f"❌ Пользователь <code>{uid}</code> лишен доступа к боту.")
+    else:
+        await message.answer("Этот пользователь не найден в списке доступов.")
+
+@router.message(Command("showusers"))
+async def showusers_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    users_list = "\n".join([f"• <code>{uid}</code>" for uid in ALLOWED_USERS])
+    await message.answer(f"📋 <b>Список пользователей с доступом:</b>\n\n{users_list}")
+
+@router.message(Command("logs"))
+async def logs_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer("⚙️ Логирование активно. Все действия пользователей отображаются в консоли Render в реальном времени.")
 
 @router.message(CommandStart())
 async def start_cmd(message: Message):
@@ -117,6 +163,7 @@ async def search_cmd(message: Message):
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
         await msg.edit_text(text, reply_markup=kb)
     except Exception as e:
+        logger.error(f"Search error: {e}")
         await msg.edit_text("Ошибка поиска.")
 
 @router.message(Command("posts"))
@@ -145,7 +192,8 @@ async def posts_cmd(message: Message):
             
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu")]])
         await msg.edit_text(text, disable_web_page_preview=True, reply_markup=kb)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Posts error: {e}")
         await msg.edit_text("Ошибка. Возможно, канал частный.")
 
 @router.callback_query(F.data == "menu")
